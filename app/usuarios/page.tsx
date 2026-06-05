@@ -5,11 +5,18 @@ import Image from "next/image";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/shared/PageContainer";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TableSkeleton } from "@/components/shared/States";
 import { toast } from "sonner";
-import { ShieldCheck, ShieldX, ShieldAlert, Crown } from "lucide-react";
+import { ROLES } from "@/lib/roles";
+import { ShieldAlert, Crown } from "lucide-react";
 
 interface Usuario {
   id: string;
@@ -17,8 +24,10 @@ interface Usuario {
   nome: string;
   imageUrl?: string;
   isAdmin: boolean;
-  authorized: boolean;
+  role: string | null;
 }
+
+const SEM_ACESSO = "__sem__";
 
 export default function UsuariosPage() {
   const [data, setData] = useState<Usuario[]>([]);
@@ -45,17 +54,18 @@ export default function UsuariosPage() {
     carregar();
   }, [carregar]);
 
-  async function alterar(u: Usuario, authorized: boolean) {
+  async function definirRole(u: Usuario, novo: string) {
+    const role = novo === SEM_ACESSO ? "" : novo;
     setSalvando(u.id);
     try {
       const res = await fetch("/api/usuarios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: u.id, authorized }),
+        body: JSON.stringify({ userId: u.id, role }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
-      toast.success(authorized ? "Acesso liberado" : "Acesso revogado");
+      toast.success(role ? "Papel atualizado" : "Acesso removido");
       carregar();
     } catch (e) {
       toast.error((e as Error).message);
@@ -66,10 +76,7 @@ export default function UsuariosPage() {
 
   return (
     <>
-      <Header
-        title="Usuários e acessos"
-        subtitle="Libere quem pode usar o sistema"
-      />
+      <Header title="Usuários e acessos" subtitle="Defina o papel de cada pessoa" />
       <PageContainer>
         <Card className="p-4 shadow-sm">
           {loading ? (
@@ -101,38 +108,30 @@ export default function UsuariosPage() {
                     <p className="font-medium truncate">{u.nome}</p>
                     <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                   </div>
+
                   {u.isAdmin ? (
                     <Badge variant="secondary" className="gap-1">
                       <Crown className="h-3 w-3" /> Admin
                     </Badge>
-                  ) : u.authorized ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-[#1b7a3d]">
-                      <ShieldCheck className="h-4 w-4" /> Autorizado
-                    </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-[#b26a00]">
-                      <ShieldAlert className="h-4 w-4" /> Pendente
-                    </span>
+                    <Select
+                      value={u.role || SEM_ACESSO}
+                      onValueChange={(v) => definirRole(u, v ?? SEM_ACESSO)}
+                      disabled={salvando === u.id}
+                    >
+                      <SelectTrigger className="w-44">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SEM_ACESSO}>Sem acesso</SelectItem>
+                        {ROLES.map((r) => (
+                          <SelectItem key={r.value} value={r.value}>
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
-                  {!u.isAdmin &&
-                    (u.authorized ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={salvando === u.id}
-                        onClick={() => alterar(u, false)}
-                      >
-                        <ShieldX className="h-3.5 w-3.5" /> Revogar
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        disabled={salvando === u.id}
-                        onClick={() => alterar(u, true)}
-                      >
-                        <ShieldCheck className="h-3.5 w-3.5" /> Liberar
-                      </Button>
-                    ))}
                 </li>
               ))}
               {data.length === 0 && (
@@ -143,10 +142,20 @@ export default function UsuariosPage() {
             </ul>
           )}
         </Card>
-        <p className="text-xs text-muted-foreground mt-3">
-          Novos logins entram como <strong>Pendente</strong> e não veem nada até serem
-          liberados aqui. Administradores são definidos pela variável <code>ALLOWED_EMAILS</code>.
-        </p>
+
+        <Card className="p-4 shadow-sm mt-4">
+          <h2 className="font-semibold text-foreground mb-2 text-sm">O que cada papel acessa</h2>
+          <ul className="text-xs text-muted-foreground space-y-1">
+            {ROLES.map((r) => (
+              <li key={r.value}>
+                <strong className="text-foreground">{r.label}:</strong> {r.desc}
+              </li>
+            ))}
+            <li>
+              <strong className="text-foreground">Sem acesso:</strong> não consegue entrar (pendente).
+            </li>
+          </ul>
+        </Card>
       </PageContainer>
     </>
   );

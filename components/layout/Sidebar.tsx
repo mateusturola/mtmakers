@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton, SignedIn } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
+import { can } from "@/lib/roles";
 import { Logo } from "@/components/layout/Logo";
 import {
   LayoutDashboard,
@@ -41,6 +42,19 @@ const NAV = [
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => setRole(j.data?.role ?? null))
+      .catch(() => {});
+  }, []);
+
+  // Enquanto o papel não carrega, mostra tudo; depois filtra pelos módulos permitidos.
+  const navVisivel = role
+    ? NAV.filter((item) => can(role, item.href.slice(1)))
+    : NAV;
 
   return (
     <>
@@ -82,7 +96,7 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-          {NAV.map((item) => {
+          {navVisivel.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             const Icon = item.icon;
             return (

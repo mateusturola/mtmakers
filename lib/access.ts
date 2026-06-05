@@ -12,10 +12,13 @@ export function isAdminEmail(email?: string | null): boolean {
   return getAdminEmails().includes(email.toLowerCase());
 }
 
-// Um usuário tem acesso se for admin OU se um admin liberou (publicMetadata.authorized).
-export function isAuthorized(
+// Papel efetivo: admin (por e-mail) tem prioridade; senão usa publicMetadata.role.
+// Retorna null se o usuário não tem acesso (pendente).
+export function effectiveRole(
   email: string | undefined | null,
   publicMetadata: Record<string, unknown> | undefined | null
-): boolean {
-  return isAdminEmail(email) || publicMetadata?.authorized === true;
+): string | null {
+  if (isAdminEmail(email)) return "admin";
+  const r = publicMetadata?.role;
+  return typeof r === "string" && r ? r : null;
 }

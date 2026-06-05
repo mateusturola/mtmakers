@@ -33,13 +33,17 @@ export async function GET() {
     const list = await client.users.getUserList({ limit: 100, orderBy: "-created_at" });
     const data = list.data.map((u) => {
       const email = emailDe(u);
+      const isAdmin = isAdminEmail(email);
+      const role = isAdmin
+        ? "admin"
+        : (typeof u.publicMetadata?.role === "string" && u.publicMetadata.role) || null;
       return {
         id: u.id,
         email,
         nome: [u.firstName, u.lastName].filter(Boolean).join(" ") || u.username || "—",
         imageUrl: u.imageUrl,
-        isAdmin: isAdminEmail(email),
-        authorized: isAdminEmail(email) || u.publicMetadata?.authorized === true,
+        isAdmin,
+        role,
       };
     });
     return NextResponse.json({ data });
@@ -57,8 +61,10 @@ export async function POST(req: NextRequest) {
     if (!body.userId) {
       return NextResponse.json({ error: "userId obrigatório" }, { status: 400 });
     }
+    // role vazio/null = remover acesso; senão define o papel.
+    const role = body.role || null;
     await client.users.updateUserMetadata(body.userId, {
-      publicMetadata: { authorized: Boolean(body.authorized) },
+      publicMetadata: { role, authorized: role ? true : false },
     });
     return NextResponse.json({ ok: true });
   } catch (e) {
