@@ -14,7 +14,7 @@ import { ErrorState } from "@/components/shared/States";
 import { formatBRL, formatDateBR, formatPercent } from "@/lib/format";
 import { useConfig } from "@/hooks/use-config";
 import type { DashboardData } from "@/types";
-import { ShoppingCart, DollarSign, Target, Handshake } from "lucide-react";
+import { ShoppingCart, DollarSign, Target, Handshake, Trophy } from "lucide-react";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -142,6 +142,55 @@ export default function DashboardPage() {
                 <Skeleton className="h-64 rounded-xl" />
               )}
             </div>
+
+            {/* Produtos campeões de lucro */}
+            {data && !loading ? (
+              <Card className="p-5 shadow-sm">
+                <h2 className="font-semibold text-foreground mb-1 flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-[#f5a623]" /> Produtos campeões de lucro
+                </h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Por lucro acumulado nos pedidos (preço − custo)
+                </p>
+                {data.produtosCampeoes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Sem dados ainda — cadastre pedidos com produtos do catálogo.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {data.produtosCampeoes.map((p, i) => {
+                      const max = Math.max(1, ...data.produtosCampeoes.map((x) => x.lucro));
+                      return (
+                        <div key={p.produto}>
+                          <div className="flex items-center justify-between text-sm mb-1 gap-3">
+                            <span className="font-medium truncate">
+                              <span className="text-muted-foreground mr-1.5">{i + 1}.</span>
+                              {p.produto}
+                            </span>
+                            <span className="shrink-0 text-right">
+                              <span className="font-bold text-[#1b7a3d]">
+                                {formatBRL(p.lucro)}
+                              </span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                {p.qtd} un · {formatBRL(p.faturamento)}
+                              </span>
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-[#1b7a3d]"
+                              style={{ width: `${Math.max(4, (p.lucro / max) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            ) : (
+              <Skeleton className="h-48 rounded-xl" />
+            )}
           </div>
         )}
       </PageContainer>

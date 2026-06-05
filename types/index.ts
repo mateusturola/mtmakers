@@ -147,6 +147,7 @@ export interface DashboardData {
   statusResumo: { status: string; quantidade: number; valor: number }[];
   ultimosPedidos: Pedido[];
   faturamentoPorMes: { mes: string; faturado: number }[];
+  produtosCampeoes: { produto: string; qtd: number; faturamento: number; lucro: number }[];
 }
 
 export interface Adicional {

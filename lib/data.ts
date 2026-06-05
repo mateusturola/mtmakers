@@ -10,6 +10,7 @@ import {
 } from "./sheets";
 import { SHEETS, dataRange, type SheetKey } from "./sheets-config";
 import { META_MENSAL } from "./constants";
+import { parseItens } from "./itens";
 import {
   DEFAULT_CONFIG,
   CONFIG_NUM_KEYS,
@@ -744,10 +745,15 @@ function mesAtualBR(): string {
 }
 
 export async function getDashboard(): Promise<DashboardData> {
-  const [pedidos, consignado] = await Promise.all([
+  const [pedidos, consignado, produtos] = await Promise.all([
     listPedidos(),
     listConsignado(),
+    listProdutos(),
   ]);
+
+  // Custo por peça por nome de produto (para calcular lucro).
+  const custoPorNome = new Map<string, number>();
+  for (const p of produtos) custoPorNome.set(p.peca, p.custoPc);
 
   const mesAno = mesAtualBR();
   const faturamentoMes = pedidos
@@ -788,6 +794,35 @@ export async function getDashboard(): Promise<DashboardData> {
     return { mes, faturado };
   });
 
+  // Produtos campeões de lucro (a partir dos pedidos não cancelados).
+  const agg = new Map<string, { qtd: number; faturamento: number; lucro: number }>();
+  for (const p of pedidos) {
+    if (p.status === "Cancelado") continue;
+    const itens = parseItens(p.produto);
+    const temLista = itens.length > 1 || (itens[0]?.valorUnit ?? 0) > 0;
+    const linhas = temLista
+      ? itens
+      : [{ produto: p.produto, qtd: p.qtd, valorUnit: p.precoUnit }];
+    for (const l of linhas) {
+      if (!l.produto) continue;
+      const custoUnit = custoPorNome.get(l.produto) ?? 0;
+      const cur = agg.get(l.produto) || { qtd: 0, faturamento: 0, lucro: 0 };
+      cur.qtd += l.qtd;
+      cur.faturamento += l.qtd * l.valorUnit;
+      cur.lucro += l.qtd * (l.valorUnit - custoUnit);
+      agg.set(l.produto, cur);
+    }
+  }
+  const produtosCampeoes = Array.from(agg.entries())
+    .map(([produto, v]) => ({
+      produto,
+      qtd: v.qtd,
+      faturamento: Math.round(v.faturamento * 100) / 100,
+      lucro: Math.round(v.lucro * 100) / 100,
+    }))
+    .sort((a, b) => b.lucro - a.lucro)
+    .slice(0, 5);
+
   return {
     totalPedidos: pedidos.length,
     faturamentoMes,
@@ -797,5 +832,6 @@ export async function getDashboard(): Promise<DashboardData> {
     statusResumo,
     ultimosPedidos,
     faturamentoPorMes,
+    produtosCampeoes,
   };
 }
