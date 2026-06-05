@@ -34,3 +34,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Credenciais Google (nunca commitar)
+service-account*.json
+*-service-account.json
+google-credentials*.json
+*.base64.txt

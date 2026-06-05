@@ -2,26 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* ===== MT Makers — preto + azul elétrico (#3D5AFE) sobre branco ===== */
+    --background: 0 0% 100%;
+    --foreground: 230 13% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 230 13% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 13% 9%;
+    --primary: 231 99% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 230 52% 25%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 220 27% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 229 100% 97%;
+    --accent-foreground: 230 52% 25%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 225 19% 92%;
+    --input: 224 21% 90%;
+    --ring: 231 99% 62%;
+    --radius: 0.75rem;
+
+    --chart-1: 231 99% 62%;
+    --chart-2: 230 52% 25%;
+    --chart-3: 199 89% 48%;
+    --chart-4: 35 92% 52%;
+    --chart-5: 142 71% 40%;
+
+    --sidebar-background: 220 17% 7%;
+    --sidebar-foreground: 222 14% 81%;
+    --sidebar-primary: 231 99% 62%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 224 17% 12%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 223 18% 15%;
+    --sidebar-ring: 231 99% 62%;
+  }
+
+  /* App é light-only; .dark espelha o tema claro. */
+  .dark {
+    --background: 0 0% 100%;
+    --foreground: 230 13% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 230 13% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 13% 9%;
+    --primary: 231 99% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 230 52% 25%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 220 27% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 229 100% 97%;
+    --accent-foreground: 230 52% 25%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 225 19% 92%;
+    --input: 224 21% 90%;
+    --ring: 231 99% 62%;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }
