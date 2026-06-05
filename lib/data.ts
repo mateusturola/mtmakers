@@ -20,6 +20,7 @@ import type {
   Cliente,
   Produto,
   Pedido,
+  Orcamento,
   Consignado,
   Retirada,
   Entrada,
@@ -270,6 +271,7 @@ export interface PedidoInput {
   enderecoEntrega?: string;
   qtd: number;
   precoUnit: number;
+  total?: number; // soma quando há vários produtos
   entradaPaga?: number;
   formaPgto?: string;
   dataEntrega?: string;
@@ -278,7 +280,7 @@ export interface PedidoInput {
 }
 
 function pedidoRow(seq: number | string, id: string, p: PedidoInput) {
-  const total = p.qtd * p.precoUnit;
+  const total = p.total ?? p.qtd * p.precoUnit;
   const entrada = p.entradaPaga || 0;
   const restante = total - entrada;
   return [
@@ -317,7 +319,8 @@ export async function updatePedido(
   const current = all.find((p) => p.rowNumber === rowNumber);
   if (!current) throw new Error("Pedido não encontrado");
   const m = { ...current, ...input };
-  const total = m.qtd * m.precoUnit;
+  // Produto único: recalcula; vários produtos (precoUnit 0): mantém o total salvo.
+  const total = m.precoUnit > 0 ? m.qtd * m.precoUnit : m.total;
   const restante = total - (m.entradaPaga || 0);
   const row = [
     m.seq,
@@ -338,6 +341,143 @@ export async function updatePedido(
     m.observacoes,
   ];
   await updateRow(`${SHEETS.Pedidos.name}!A${rowNumber}:P${rowNumber}`, [row]);
+}
+
+// ===================== ORÇAMENTOS =====================
+
+function addDiasBR(dataBR: string, dias: number): string {
+  const m = dataBR.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  const d = m
+    ? new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]))
+    : new Date();
+  d.setDate(d.getDate() + dias);
+  return d.toLocaleDateString("pt-BR");
+}
+
+export async function listOrcamentos(): Promise<Orcamento[]> {
+  const rows = await readSheet(dataRange("Orcamentos"));
+  return rows
+    .map((r, i) => ({ r, rowNumber: rowNum("Orcamentos", i) }))
+    .filter(({ r }) => !isEmptyRow(r) && str(r[1]) !== "")
+    .map(({ r, rowNumber }) => ({
+      rowNumber,
+      seq: str(r[0]),
+      id: str(r[1]),
+      idCliente: str(r[2]),
+      data: str(r[3]),
+      cliente: str(r[4]),
+      produtos: str(r[5]),
+      enderecoEntrega: str(r[6]),
+      qtd: parseNumber(r[7]),
+      total: parseNumber(r[8]),
+      entradaPaga: parseNumber(r[9]),
+      restante: parseNumber(r[10]),
+      formaPgto: str(r[11]),
+      validade: str(r[12]),
+      status: str(r[13]),
+      observacoes: str(r[14]),
+    }));
+}
+
+export interface OrcamentoInput {
+  idCliente: string;
+  cliente: string;
+  produtos: string;
+  qtd: number;
+  total: number;
+  data?: string;
+  enderecoEntrega?: string;
+  entradaPaga?: number;
+  formaPgto?: string;
+  validade?: string;
+  status?: string;
+  observacoes?: string;
+}
+
+function orcamentoRow(seq: number | string, id: string, o: OrcamentoInput) {
+  const data = o.data || hojeBR();
+  const entrada = o.entradaPaga || 0;
+  const restante = o.total - entrada;
+  return [
+    seq,
+    id,
+    o.idCliente,
+    data,
+    o.cliente,
+    o.produtos,
+    o.enderecoEntrega || "",
+    o.qtd,
+    o.total,
+    entrada,
+    restante,
+    o.formaPgto || "Pendente",
+    o.validade || addDiasBR(data, 7),
+    o.status || "Aberto",
+    o.observacoes || "",
+  ];
+}
+
+export async function createOrcamento(input: OrcamentoInput): Promise<{ id: string }> {
+  const existing = await listOrcamentos();
+  const id = nextId("ORC", existing.map((o) => o.id));
+  const seq = existing.length + 1;
+  await appendRow(dataRange("Orcamentos"), [orcamentoRow(seq, id, input)]);
+  return { id };
+}
+
+export async function updateOrcamento(
+  rowNumber: number,
+  input: Partial<Orcamento>
+): Promise<void> {
+  const all = await listOrcamentos();
+  const current = all.find((o) => o.rowNumber === rowNumber);
+  if (!current) throw new Error("Orçamento não encontrado");
+  const m = { ...current, ...input };
+  const restante = m.total - (m.entradaPaga || 0);
+  const row = [
+    m.seq,
+    m.id,
+    m.idCliente,
+    m.data,
+    m.cliente,
+    m.produtos,
+    m.enderecoEntrega,
+    m.qtd,
+    m.total,
+    m.entradaPaga,
+    restante,
+    m.formaPgto,
+    m.validade,
+    m.status,
+    m.observacoes,
+  ];
+  await updateRow(`${SHEETS.Orcamentos.name}!A${rowNumber}:O${rowNumber}`, [row]);
+}
+
+// Converte um orçamento em pedido e marca o orçamento como "Convertido".
+export async function converterOrcamentoEmPedido(
+  rowNumber: number
+): Promise<{ pedidoId: string }> {
+  const all = await listOrcamentos();
+  const o = all.find((x) => x.rowNumber === rowNumber);
+  if (!o) throw new Error("Orçamento não encontrado");
+
+  const ped = await createPedido({
+    idCliente: o.idCliente,
+    cliente: o.cliente,
+    produto: o.produtos,
+    qtd: o.qtd,
+    precoUnit: 0,
+    total: o.total,
+    enderecoEntrega: o.enderecoEntrega,
+    entradaPaga: o.entradaPaga,
+    formaPgto: o.formaPgto,
+    status: "Aguardando confirmação",
+    observacoes: o.observacoes,
+  });
+
+  await updateOrcamento(rowNumber, { status: "Convertido" });
+  return { pedidoId: ped.id };
 }
 
 // ===================== ENTRADAS =====================

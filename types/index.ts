@@ -83,6 +83,25 @@ export interface Pedido {
   observacoes: string;
 }
 
+export interface Orcamento {
+  rowNumber: number;
+  seq: string;
+  id: string; // ORC-001
+  idCliente: string;
+  data: string;
+  cliente: string;
+  produtos: string; // lista serializada
+  enderecoEntrega: string;
+  qtd: number; // qtd total
+  total: number;
+  entradaPaga: number;
+  restante: number;
+  formaPgto: string;
+  validade: string; // data de validade
+  status: string;
+  observacoes: string;
+}
+
 export interface Consignado {
   rowNumber: number;
   id: string;

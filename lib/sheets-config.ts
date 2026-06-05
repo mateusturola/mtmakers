@@ -5,6 +5,7 @@ export const SHEETS = {
   Clientes: { name: "Clientes", gid: 1161279121, firstDataRow: 4, lastCol: "H" },
   Produtos: { name: "Produtos", gid: 1310523105, firstDataRow: 4, lastCol: "T" },
   Pedidos: { name: "Pedidos", gid: 1035898222, firstDataRow: 4, lastCol: "P" },
+  Orcamentos: { name: "Orcamentos", gid: 0, firstDataRow: 4, lastCol: "O" },
   Consignado: { name: "Consignado", gid: 904497732, firstDataRow: 4, lastCol: "J" },
   Retiradas: { name: "Retiradas", gid: 152567176, firstDataRow: 4, lastCol: "F" },
   Entradas: { name: "Entradas", gid: 2018329118, firstDataRow: 4, lastCol: "H" },

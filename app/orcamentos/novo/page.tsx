@@ -2,12 +2,12 @@ import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/shared/PageContainer";
 import { DocumentoForm } from "@/components/shared/DocumentoForm";
 
-export default function NovoPedidoPage() {
+export default function NovoOrcamentoPage() {
   return (
     <>
-      <Header title="Novo Pedido" subtitle="Cadastrar um novo pedido" />
+      <Header title="Novo Orçamento" subtitle="Cadastrar um novo orçamento" />
       <PageContainer>
-        <DocumentoForm tipo="pedido" />
+        <DocumentoForm tipo="orcamento" />
       </PageContainer>
     </>
   );

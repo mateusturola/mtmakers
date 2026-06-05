@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
 import { formatBRL, formatDateBR } from "@/lib/format";
+import { parseItens } from "@/lib/itens";
 import { montarPixPayload } from "@/lib/pix";
 import type { Config } from "@/lib/config";
 
@@ -74,13 +75,22 @@ export async function gerarPedidoPDF(p: PedidoPDFData, cfg: Config) {
     doc.setFont("helvetica", "normal").text(p.status, W - left, y, { align: "right" });
   }
 
-  // Tabela do produto
+  // Tabela de produtos (1 ou vários)
+  const itens = parseItens(p.produto);
+  const temLista = itens.length > 1 || (itens[0]?.valorUnit ?? 0) > 0;
+  const body = temLista
+    ? itens.map((i) => [
+        i.produto,
+        String(i.qtd),
+        formatBRL(i.valorUnit),
+        formatBRL(i.qtd * i.valorUnit),
+      ])
+    : [[p.produto, String(p.qtd), formatBRL(p.precoUnit), formatBRL(p.total)]];
+
   autoTable(doc, {
     startY: y + 8,
     head: [["Produto", "Qtd", "Preço un.", "Total"]],
-    body: [
-      [p.produto, String(p.qtd), formatBRL(p.precoUnit), formatBRL(p.total)],
-    ],
+    body,
     theme: "striped",
     headStyles: { fillColor: [61, 90, 254], textColor: 255 },
     columnStyles: {

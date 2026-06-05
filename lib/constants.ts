@@ -47,6 +47,20 @@ export const PRODUTO_CATEGORIAS = [
   "Times de futebol",
 ] as const;
 
+export const ORCAMENTO_STATUS = [
+  "Aberto",
+  "Aprovado",
+  "Convertido",
+  "Recusado",
+  "Expirado",
+] as const;
+
+// Texto padrão de observações do orçamento.
+export const ORCAMENTO_OBS_PADRAO =
+  "Orçamento válido por 7 dias a partir da data de emissão.\n" +
+  "Prazo de confecção de peças personalizadas: 3 dias úteis após aprovação da arte e pagamento da entrada.\n" +
+  "Valores sujeitos a alteração após o vencimento do orçamento.";
+
 export const CONSIGNADO_STATUS = [
   "Ativo",
   "Parcialmente devolvido",

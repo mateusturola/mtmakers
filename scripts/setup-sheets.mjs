@@ -25,6 +25,10 @@ const TABS = {
     "#", "ID Pedido", "ID Cliente", "Data", "Cliente", "Produto", "Endereço entrega", "Qtd",
     "Preço unit. (R$)", "Total (R$)", "Entrada paga", "Restante", "Forma pgto", "Data entrega", "Status", "Observações",
   ],
+  Orcamentos: [
+    "#", "ID Orçamento", "ID Cliente", "Data", "Cliente", "Produtos", "Endereço entrega",
+    "Qtd", "Total (R$)", "Entrada paga", "Restante", "Forma pgto", "Validade", "Status", "Observações",
+  ],
   Consignado: [
     "ID Consignado", "ID Cliente", "Cliente", "Data", "Produtos/Qtd", "Valor consignado",
     "Valor devolvido", "Saldo", "Status", "Observações",

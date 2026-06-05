@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -16,131 +16,177 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Combobox, type ComboItem } from "@/components/shared/Combobox";
+import { ItensEditor, ITEM_VAZIO, type ItemForm } from "@/components/shared/ItensEditor";
 import { ClienteForm } from "@/components/clientes/ClienteForm";
 import { ProdutoForm } from "@/components/produtos/ProdutoForm";
 import { useCollection } from "@/hooks/use-collection";
 import { useConfig } from "@/hooks/use-config";
-import { PEDIDO_STATUS, FORMAS_PGTO } from "@/lib/constants";
+import { PEDIDO_STATUS, ORCAMENTO_STATUS, FORMAS_PGTO } from "@/lib/constants";
+import { serializeItens } from "@/lib/itens";
 import { formatBRL, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Cliente, Produto } from "@/types";
-import {
-  Loader2,
-  User,
-  Package,
-  TrendingUp,
-  Wallet,
-  Truck,
-} from "lucide-react";
+import { Loader2, User, Package, TrendingUp, Wallet, Truck } from "lucide-react";
 
-export function PedidoForm() {
+const isoToBR = (s: string) => (s ? s.split("-").reverse().join("/") : "");
+function hojeMais(dias: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+export function DocumentoForm({ tipo }: { tipo: "pedido" | "orcamento" }) {
   const router = useRouter();
-  const { data: clientes, refetch: refetchClientes } =
-    useCollection<Cliente>("/api/clientes");
-  const { data: produtos, refetch: refetchProdutos } =
-    useCollection<Produto>("/api/produtos");
+  const isOrc = tipo === "orcamento";
+  const { data: clientes, refetch: refetchClientes } = useCollection<Cliente>("/api/clientes");
+  const { data: produtos, refetch: refetchProdutos } = useCollection<Produto>("/api/produtos");
   const { config } = useConfig();
+
   const [saving, setSaving] = useState(false);
   const [clienteFormOpen, setClienteFormOpen] = useState(false);
   const [produtoFormOpen, setProdutoFormOpen] = useState(false);
 
   const [idCliente, setIdCliente] = useState("");
   const [cliente, setCliente] = useState("");
-  const [idProduto, setIdProduto] = useState("");
-  const [produto, setProduto] = useState("");
+  const [itens, setItens] = useState<ItemForm[]>([{ ...ITEM_VAZIO }]);
   const [data, setData] = useState("");
-  const [qtd, setQtd] = useState("1");
-  const [precoUnit, setPrecoUnit] = useState("");
+  const [data3, setData3] = useState(isOrc ? hojeMais(7) : ""); // validade (orc) ou entrega (ped)
   const [entradaPaga, setEntradaPaga] = useState("0");
   const [formaPgto, setFormaPgto] = useState("Pendente");
-  const [dataEntrega, setDataEntrega] = useState("");
-  const [status, setStatus] = useState("Aguardando confirmação");
+  const [status, setStatus] = useState(isOrc ? "Aberto" : "Aguardando confirmação");
   const [endereco, setEndereco] = useState("");
   const [obs, setObs] = useState("");
 
-  const clienteItems: ComboItem[] = useMemo(
-    () => clientes.map((c) => ({ value: c.id, label: c.nome, sublabel: `${c.id} · ${c.cidade}` })),
-    [clientes]
-  );
-  const produtoItems: ComboItem[] = useMemo(
-    () =>
-      produtos.map((p) => ({
-        value: p.id,
-        label: p.peca,
-        sublabel: `${p.id} · ${formatBRL(p.preco50)}`,
-      })),
-    [produtos]
-  );
+  const clienteItems: ComboItem[] = clientes.map((c) => ({
+    value: c.id,
+    label: c.nome,
+    sublabel: `${c.id} · ${c.cidade}`,
+  }));
 
-  const prodSel = produtos.find((p) => p.id === idProduto);
-  const nQtd = Number(qtd) || 0;
-  const nPreco = Number(precoUnit) || 0;
-  const custoUnit = prodSel?.custoPc ?? 0;
-
-  const total = nQtd * nPreco;
-  const custoTotal = nQtd * custoUnit;
+  const total = itens.reduce(
+    (a, i) => a + (Number(i.qtd) || 0) * (Number(i.valorUnit) || 0),
+    0
+  );
+  const custoTotal = itens.reduce((a, i) => {
+    const p = produtos.find((x) => x.peca === i.produto);
+    return a + (Number(i.qtd) || 0) * (p?.custoPc ?? 0);
+  }, 0);
   const lucro = total - custoTotal;
   const margem = total > 0 ? (lucro / total) * 100 : 0;
   const restante = total - (Number(entradaPaga) || 0);
 
   async function submit() {
-    if (!cliente || !produto || !qtd) {
-      toast.error("Cliente, produto e quantidade são obrigatórios");
-      return;
-    }
+    const validos = itens.filter((i) => i.produto && Number(i.qtd) > 0);
+    if (!cliente) return toast.error("Selecione o cliente");
+    if (validos.length === 0) return toast.error("Adicione ao menos um produto");
+
+    const produtosStr = serializeItens(
+      validos.map((i) => ({
+        produto: i.produto,
+        qtd: Number(i.qtd),
+        valorUnit: Number(i.valorUnit) || 0,
+      }))
+    );
+    const qtdTotal = validos.reduce((a, i) => a + (Number(i.qtd) || 0), 0);
+    const dataBR = isoToBR(data);
+    const data3BR = isoToBR(data3);
+
     setSaving(true);
-    const dataBR = data ? data.split("-").reverse().join("/") : undefined;
-    const entregaBR = dataEntrega ? dataEntrega.split("-").reverse().join("/") : "";
     try {
-      const res = await fetch("/api/pedidos", {
+      const endpoint = isOrc ? "/api/orcamentos" : "/api/pedidos";
+      const payload = isOrc
+        ? {
+            idCliente,
+            cliente,
+            produtos: produtosStr,
+            qtd: qtdTotal,
+            total,
+            data: dataBR || undefined,
+            validade: data3BR || undefined,
+            enderecoEntrega: endereco,
+            entradaPaga: Number(entradaPaga) || 0,
+            formaPgto,
+            status,
+            observacoes: obs,
+          }
+        : {
+            idCliente,
+            cliente,
+            produto: produtosStr,
+            qtd: qtdTotal,
+            precoUnit: 0,
+            total,
+            data: dataBR || undefined,
+            dataEntrega: data3BR,
+            enderecoEntrega: endereco,
+            entradaPaga: Number(entradaPaga) || 0,
+            formaPgto,
+            status,
+            observacoes: obs,
+          };
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idCliente,
-          cliente,
-          produto,
-          data: dataBR,
-          enderecoEntrega: endereco,
-          qtd: Number(qtd),
-          precoUnit: nPreco,
-          entradaPaga: Number(entradaPaga) || 0,
-          formaPgto,
-          dataEntrega: entregaBR,
-          status,
-          observacoes: obs,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro ao salvar");
-      toast.success(`Pedido ${json.data.id} criado!`);
+      const novoId = json.data.id;
+      toast.success(`${isOrc ? "Orçamento" : "Pedido"} ${novoId} criado!`);
 
-      // Gera o PDF do pedido (com QR do PIX) automaticamente.
+      // Gera o PDF
       try {
-        const { gerarPedidoPDF } = await import("@/lib/pedido-pdf");
-        await gerarPedidoPDF(
-          {
-            id: json.data.id,
-            cliente,
-            produto,
-            data: dataBR,
-            dataEntrega: entregaBR,
-            qtd: nQtd,
-            precoUnit: nPreco,
-            total,
-            entradaPaga: Number(entradaPaga) || 0,
-            restante,
-            formaPgto,
-            status,
-            enderecoEntrega: endereco,
-            observacoes: obs,
-          },
-          config
-        );
+        if (isOrc) {
+          const { gerarOrcamentoPDF } = await import("@/lib/orcamento-pdf");
+          await gerarOrcamentoPDF(
+            {
+              rowNumber: -1,
+              seq: "",
+              id: novoId,
+              idCliente,
+              data: dataBR || new Date().toLocaleDateString("pt-BR"),
+              cliente,
+              produtos: produtosStr,
+              enderecoEntrega: endereco,
+              qtd: qtdTotal,
+              total,
+              entradaPaga: Number(entradaPaga) || 0,
+              restante,
+              formaPgto,
+              validade: data3BR,
+              status,
+              observacoes: obs,
+            },
+            config
+          );
+        } else {
+          const { gerarPedidoPDF } = await import("@/lib/pedido-pdf");
+          await gerarPedidoPDF(
+            {
+              id: novoId,
+              cliente,
+              produto: produtosStr,
+              data: dataBR,
+              dataEntrega: data3BR,
+              qtd: qtdTotal,
+              precoUnit: 0,
+              total,
+              entradaPaga: Number(entradaPaga) || 0,
+              restante,
+              formaPgto,
+              status,
+              enderecoEntrega: endereco,
+              observacoes: obs,
+            },
+            config
+          );
+        }
       } catch (pdfErr) {
-        toast.error("Pedido criado, mas falhou ao gerar o PDF: " + (pdfErr as Error).message);
+        toast.error("Criado, mas falhou o PDF: " + (pdfErr as Error).message);
       }
 
-      router.push("/pedidos");
+      router.push(isOrc ? "/orcamentos" : "/pedidos");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -150,7 +196,6 @@ export function PedidoForm() {
 
   return (
     <div className="max-w-3xl space-y-5">
-      {/* Cliente */}
       <Secao titulo="Cliente" icon={User}>
         <Combobox
           items={clienteItems}
@@ -165,42 +210,16 @@ export function PedidoForm() {
         />
       </Secao>
 
-      {/* Produto e valores */}
-      <Secao titulo="Produto e valores" icon={Package}>
-        <div className="space-y-4">
-          <div>
-            <Label className="mb-1.5 block">Produto *</Label>
-            <Combobox
-              items={produtoItems}
-              value={idProduto}
-              onSelect={(i) => {
-                setIdProduto(i.value);
-                setProduto(i.label);
-                const p = produtos.find((x) => x.id === i.value);
-                if (p?.preco50) setPrecoUnit(String(p.preco50));
-              }}
-              placeholder="Buscar produto..."
-              onCreate={() => setProdutoFormOpen(true)}
-              createLabel="Criar novo produto"
-            />
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <Campo label="Quantidade *">
-              <Input type="number" value={qtd} onChange={(e) => setQtd(e.target.value)} />
-            </Campo>
-            <Campo label="Preço unitário (R$)">
-              <Input
-                type="number"
-                value={precoUnit}
-                onChange={(e) => setPrecoUnit(e.target.value)}
-              />
-            </Campo>
-          </div>
-        </div>
+      <Secao titulo="Produtos" icon={Package}>
+        <ItensEditor
+          itens={itens}
+          onChange={setItens}
+          produtos={produtos}
+          onCreateProduto={() => setProdutoFormOpen(true)}
+        />
       </Secao>
 
-      {/* Resumo financeiro / lucro */}
-      {prodSel && (
+      {total > 0 && (
         <Secao titulo="Resumo financeiro" icon={TrendingUp} highlight>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Indicador label="Total" valor={formatBRL(total)} />
@@ -216,14 +235,9 @@ export function PedidoForm() {
               cor={lucro < 0 ? "text-destructive" : "text-[#1b7a3d]"}
             />
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            Custo unitário do produto: {formatBRL(custoUnit)} · preço de venda{" "}
-            {formatBRL(nPreco)}/un.
-          </p>
         </Secao>
       )}
 
-      {/* Pagamento */}
       <Secao titulo="Pagamento" icon={Wallet}>
         <div className="grid sm:grid-cols-3 gap-4">
           <Campo label="Entrada paga (R$)">
@@ -256,18 +270,13 @@ export function PedidoForm() {
         </div>
       </Secao>
 
-      {/* Entrega e detalhes */}
-      <Secao titulo="Entrega e detalhes" icon={Truck}>
+      <Secao titulo={isOrc ? "Validade e detalhes" : "Entrega e detalhes"} icon={Truck}>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Campo label="Data do pedido">
+          <Campo label={isOrc ? "Data do orçamento" : "Data do pedido"}>
             <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
           </Campo>
-          <Campo label="Data de entrega">
-            <Input
-              type="date"
-              value={dataEntrega}
-              onChange={(e) => setDataEntrega(e.target.value)}
-            />
+          <Campo label={isOrc ? "Válido até" : "Data de entrega"}>
+            <Input type="date" value={data3} onChange={(e) => setData3(e.target.value)} />
           </Campo>
           <Campo label="Status">
             <Select value={status} onValueChange={(v) => setStatus(v ?? "")}>
@@ -275,7 +284,7 @@ export function PedidoForm() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PEDIDO_STATUS.map((s) => (
+                {(isOrc ? ORCAMENTO_STATUS : PEDIDO_STATUS).map((s) => (
                   <SelectItem key={s} value={s}>
                     {s}
                   </SelectItem>
@@ -294,16 +303,15 @@ export function PedidoForm() {
       </Secao>
 
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => router.push("/pedidos")}>
+        <Button variant="outline" onClick={() => router.push(isOrc ? "/orcamentos" : "/pedidos")}>
           Cancelar
         </Button>
         <Button onClick={submit} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Criar pedido
+          {isOrc ? "Criar orçamento" : "Criar pedido"}
         </Button>
       </div>
 
-      {/* Dialogs de criação rápida */}
       <ClienteForm
         open={clienteFormOpen}
         onOpenChange={setClienteFormOpen}
@@ -319,14 +327,7 @@ export function PedidoForm() {
         open={produtoFormOpen}
         onOpenChange={setProdutoFormOpen}
         produto={null}
-        onSaved={(p) => {
-          refetchProdutos();
-          if (p) {
-            setIdProduto(p.id);
-            setProduto(p.peca);
-            if (p.preco50) setPrecoUnit(String(p.preco50));
-          }
-        }}
+        onSaved={() => refetchProdutos()}
       />
     </div>
   );

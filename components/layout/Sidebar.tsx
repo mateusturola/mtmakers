@@ -17,6 +17,7 @@ import {
   Calculator,
   Package2,
   Settings,
+  FileText,
   Menu,
   X,
 } from "lucide-react";
@@ -26,6 +27,7 @@ const NAV = [
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/produtos", label: "Produtos", icon: Package },
   { href: "/adicionais", label: "Adicionais", icon: Package2 },
+  { href: "/orcamentos", label: "Orçamentos", icon: FileText },
   { href: "/pedidos", label: "Pedidos", icon: ShoppingCart },
   { href: "/entradas", label: "Entradas", icon: ArrowDownToLine },
   { href: "/consignado", label: "Consignado", icon: Handshake },
