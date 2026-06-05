@@ -6,7 +6,10 @@ import { Sidebar } from "@/components/layout/Sidebar";
 // Esconde a navegação nas telas de autenticação.
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAuthRoute = pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");
+  const isAuthRoute =
+    pathname.startsWith("/sign-in") ||
+    pathname.startsWith("/sign-up") ||
+    pathname.startsWith("/nao-autorizado");
 
   if (isAuthRoute) {
     return <div className="min-h-screen grid place-items-center p-4">{children}</div>;
