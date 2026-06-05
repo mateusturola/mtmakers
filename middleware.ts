@@ -8,9 +8,9 @@ const isPublicRoute = createRouteMatcher([
   "/nao-autorizado",
 ]);
 
-// Lista de e-mails autorizados (funcionários). Definida em ALLOWED_EMAILS
-// (separados por vírgula). Se vazia, o controle de allowlist fica desligado.
-const ALLOWED = (process.env.ALLOWED_EMAILS || "")
+// Admins (sempre liberados e gerenciam os demais). Demais usuários só entram
+// se um admin liberar (publicMetadata.authorized = true no Clerk).
+const ADMINS = (process.env.ALLOWED_EMAILS || "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
@@ -21,32 +21,30 @@ export default clerkMiddleware(async (auth, req) => {
   const { userId, redirectToSignIn } = await auth();
   if (!userId) return redirectToSignIn();
 
-  // Controle de acesso por e-mail (allowlist de funcionários).
-  if (ALLOWED.length > 0) {
-    let email: string | undefined;
-    try {
-      const client = await clerkClient();
-      const user = await client.users.getUser(userId);
-      email = user.emailAddresses
-        .find((e) => e.id === user.primaryEmailAddressId)
-        ?.emailAddress?.toLowerCase();
-    } catch {
-      email = undefined;
-    }
+  let autorizado = false;
+  try {
+    const client = await clerkClient();
+    const user = await client.users.getUser(userId);
+    const email = user.emailAddresses
+      .find((e) => e.id === user.primaryEmailAddressId)
+      ?.emailAddress?.toLowerCase();
+    const isAdmin = !!email && ADMINS.includes(email);
+    autorizado = isAdmin || user.publicMetadata?.authorized === true;
+  } catch {
+    autorizado = false;
+  }
 
-    if (!email || !ALLOWED.includes(email)) {
-      // API → 403; página → tela de "não autorizado".
-      if (req.nextUrl.pathname.startsWith("/api")) {
-        return NextResponse.json(
-          { error: "Acesso não autorizado para esta conta." },
-          { status: 403 }
-        );
-      }
-      const url = req.nextUrl.clone();
-      url.pathname = "/nao-autorizado";
-      url.search = "";
-      return NextResponse.redirect(url);
+  if (!autorizado) {
+    if (req.nextUrl.pathname.startsWith("/api")) {
+      return NextResponse.json(
+        { error: "Acesso não autorizado. Peça liberação ao administrador." },
+        { status: 403 }
+      );
     }
+    const url = req.nextUrl.clone();
+    url.pathname = "/nao-autorizado";
+    url.search = "";
+    return NextResponse.redirect(url);
   }
 });
 

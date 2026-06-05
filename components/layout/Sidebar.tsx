@@ -18,6 +18,7 @@ import {
   Package2,
   Settings,
   FileText,
+  ShieldCheck,
   Menu,
   X,
 } from "lucide-react";
@@ -33,6 +34,7 @@ const NAV = [
   { href: "/consignado", label: "Consignado", icon: Handshake },
   { href: "/retiradas", label: "Retiradas", icon: Wallet },
   { href: "/calculadora", label: "Calculadora", icon: Calculator, highlight: true },
+  { href: "/usuarios", label: "Usuários", icon: ShieldCheck },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
