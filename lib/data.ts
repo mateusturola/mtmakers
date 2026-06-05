@@ -574,6 +574,30 @@ export async function createConsignado(input: {
   await appendRow(dataRange("Consignado"), [row]);
 }
 
+export async function updateConsignado(
+  rowNumber: number,
+  input: Partial<Consignado>
+): Promise<void> {
+  const all = await listConsignado();
+  const current = all.find((c) => c.rowNumber === rowNumber);
+  if (!current) throw new Error("Consignado não encontrado");
+  const m = { ...current, ...input };
+  const saldo = m.valorConsignado - (m.valorDevolvido || 0);
+  const row = [
+    m.id,
+    m.idCliente,
+    m.cliente,
+    m.data,
+    m.produtosQtd,
+    m.valorConsignado,
+    m.valorDevolvido,
+    saldo,
+    m.status,
+    m.observacoes,
+  ];
+  await updateRow(`${SHEETS.Consignado.name}!A${rowNumber}:J${rowNumber}`, [row]);
+}
+
 // ===================== RETIRADAS =====================
 
 export async function listRetiradas(): Promise<Retirada[]> {

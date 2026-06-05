@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/shared/PageContainer";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -26,10 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, FileText } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Plus, Trash2, FileText, Save } from "lucide-react";
 import { toast } from "sonner";
 import { CONSIGNADO_STATUS } from "@/lib/constants";
 import { formatBRL, formatDateBR } from "@/lib/format";
+import { parseItens } from "@/lib/itens";
 import type { Consignado, Cliente, Produto } from "@/types";
 
 async function baixarPDF(c: Consignado) {
@@ -108,6 +110,7 @@ const colunas: ColumnDef<Consignado>[] = [
 export default function ConsignadoPage() {
   const { data, loading, error, refetch } = useCollection<Consignado>("/api/consignado");
   const [open, setOpen] = useState(false);
+  const [detalhe, setDetalhe] = useState<Consignado | null>(null);
 
   return (
     <>
@@ -129,13 +132,165 @@ export default function ConsignadoPage() {
           <DataTable
             columns={colunas}
             data={data}
+            onRowClick={setDetalhe}
             emptyMessage="Nenhum consignado registrado."
           />
         )}
       </PageContainer>
 
       <ConsignadoForm open={open} onOpenChange={setOpen} onSaved={refetch} />
+      <ConsignadoDetalhe
+        consignado={detalhe}
+        onClose={() => setDetalhe(null)}
+        onUpdated={refetch}
+      />
     </>
+  );
+}
+
+function ConsignadoDetalhe({
+  consignado,
+  onClose,
+  onUpdated,
+}: {
+  consignado: Consignado | null;
+  onClose: () => void;
+  onUpdated: () => void;
+}) {
+  const [devolvido, setDevolvido] = useState("0");
+  const [statusV, setStatusV] = useState("Ativo");
+  const [obs, setObs] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (consignado) {
+      setDevolvido(String(consignado.valorDevolvido));
+      setStatusV(consignado.status || "Ativo");
+      setObs(consignado.observacoes || "");
+    }
+  }, [consignado]);
+
+  const itens = consignado ? parseItens(consignado.produtosQtd) : [];
+  const saldo = consignado ? consignado.valorConsignado - (Number(devolvido) || 0) : 0;
+
+  async function salvar() {
+    if (!consignado) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/consignado", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...consignado,
+          valorDevolvido: Number(devolvido) || 0,
+          status: statusV,
+          observacoes: obs,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success("Consignado atualizado");
+      onUpdated();
+      onClose();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Sheet open={!!consignado} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>{consignado?.id} · {consignado?.cliente}</SheetTitle>
+        </SheetHeader>
+        {consignado && (
+          <div className="mt-4 space-y-4 text-sm">
+            <div className="grid grid-cols-2 gap-3">
+              <Info label="Data" value={formatDateBR(consignado.data) || "—"} />
+              <Info label="Valor consignado" value={formatBRL(consignado.valorConsignado)} />
+            </div>
+
+            <div>
+              <p className="text-xs text-muted-foreground mb-1.5">Produtos deixados</p>
+              {itens.length > 0 ? (
+                <ul className="rounded-lg border border-border divide-y divide-border">
+                  {itens.map((i, idx) => (
+                    <li key={idx} className="flex justify-between px-3 py-1.5">
+                      <span>
+                        {i.qtd}× {i.produto}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {formatBRL(i.qtd * i.valorUnit)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground">{consignado.produtosQtd || "—"}</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="mb-1.5 block">Valor devolvido (R$)</Label>
+                <Input
+                  type="number"
+                  value={devolvido}
+                  onChange={(e) => setDevolvido(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label className="mb-1.5 block">Saldo</Label>
+                <div className="h-9 flex items-center font-semibold text-primary">
+                  {formatBRL(saldo)}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label className="mb-1.5 block">Status</Label>
+              <Select value={statusV} onValueChange={(v) => setStatusV(v ?? "")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CONSIGNADO_STATUS.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="mb-1.5 block">Observações</Label>
+              <Textarea value={obs} onChange={(e) => setObs(e.target.value)} rows={2} />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => baixarPDF(consignado)}>
+                <FileText className="h-4 w-4" /> PDF
+              </Button>
+              <Button className="flex-1" onClick={salvar} disabled={saving}>
+                <Save className="h-4 w-4" /> {saving ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-medium">{value}</p>
+    </div>
   );
 }
 
